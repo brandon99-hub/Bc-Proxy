@@ -1,6 +1,5 @@
 using BcProxy.Middleware;
 using BcProxy.Services;
-using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,21 +30,15 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-builder.Services.AddHttpClient<BusinessCentralService>(client =>
+// StudentFinancialsService — queries Studentfees + customerbalance for Grade 10 financial data
+builder.Services.AddHttpClient<StudentFinancialsService>(client =>
 {
-    var baseUrl = builder.Configuration["BusinessCentral:BaseUrl"];
-    if (string.IsNullOrEmpty(baseUrl))
-    {
-        throw new InvalidOperationException("BusinessCentral:BaseUrl is not configured in appsettings.json");
-    }
-    
-    if (!baseUrl.EndsWith("/"))
-    {
-        baseUrl += "/";
-    }
-    
+    var baseUrl = builder.Configuration["BusinessCentral:BaseUrl"]
+        ?? throw new InvalidOperationException("BusinessCentral:BaseUrl is not configured in appsettings.json");
+
+    if (!baseUrl.EndsWith("/")) baseUrl += "/";
     client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
+    client.Timeout = TimeSpan.FromSeconds(60);
 })
 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {
@@ -71,4 +64,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
