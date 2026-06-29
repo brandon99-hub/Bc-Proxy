@@ -59,7 +59,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ApiKeyMiddleware>();
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Commented out to allow plain HTTP access on port 5000
 app.UseAuthorization();
 app.MapControllers();
 
