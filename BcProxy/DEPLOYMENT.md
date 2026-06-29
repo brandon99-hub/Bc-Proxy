@@ -24,7 +24,7 @@ NSSM (Non-Sucking Service Manager) is the easiest way to run a .NET application 
 3. **Configure the Service:**
    - **Path:** `C:\Program Files\dotnet\dotnet.exe` (or your dotnet path)
    - **Startup directory:** `C:\Users\USERR\PythonProject\BC proxy\BcProxy`
-   - **Arguments:** `run --urls "http://localhost:5000;https://localhost:5001"`
+   - **Arguments:** `run --urls "http://localhost:5000;https://localhost:8093"`
    - **Service name:** `BcProxyService`
    - **Display name:** `Business Central Proxy API`
    - **Description:** `Proxy API for Business Central OData endpoints`
@@ -33,7 +33,7 @@ NSSM (Non-Sucking Service Manager) is the easiest way to run a .NET application 
    ```powershell
    C:\Tools\nssm\win64\nssm.exe set BcProxyService Application "C:\Program Files\dotnet\dotnet.exe"
    C:\Tools\nssm\win64\nssm.exe set BcProxyService AppDirectory "C:\Users\USERR\PythonProject\BC proxy\BcProxy"
-   C:\Tools\nssm\win64\nssm.exe set BcProxyService AppParameters "run --urls \"http://localhost:5000;https://localhost:5001\""
+   C:\Tools\nssm\win64\nssm.exe set BcProxyService AppParameters "run --urls \"http://localhost:5000;https://localhost:8093\""
    C:\Tools\nssm\win64\nssm.exe set BcProxyService DisplayName "Business Central Proxy API"
    C:\Tools\nssm\win64\nssm.exe set BcProxyService Description "Proxy API for Business Central OData endpoints"
    C:\Tools\nssm\win64\nssm.exe set BcProxyService Start SERVICE_AUTO_START
@@ -71,7 +71,7 @@ NSSM (Non-Sucking Service Manager) is the easiest way to run a .NET application 
    ```batch
    @echo off
    cd /d "C:\Services\BcProxy"
-   dotnet BcProxy.dll --urls "http://localhost:5000;https://localhost:5001"
+   dotnet BcProxy.dll --urls "http://localhost:5000;https://localhost:8093"
    ```
 
 3. **Install as Service using NSSM or sc.exe:**
@@ -91,7 +91,7 @@ If you prefer not to use a service:
    - Trigger: `When the computer starts`
    - Action: `Start a program`
    - Program: `C:\Program Files\dotnet\dotnet.exe`
-   - Arguments: `run --urls "http://localhost:5000;https://localhost:5001"`
+   - Arguments: `run --urls "http://localhost:5000;https://localhost:8093"`
    - Start in: `C:\Users\USERR\PythonProject\BC proxy\BcProxy`
    - Check: `Run whether user is logged on or not`
    - Check: `Run with highest privileges`
@@ -153,7 +153,7 @@ To allow external access (not just localhost):
 1. **Update the URL binding** in your service configuration:
    ```powershell
    # Change from localhost to 0.0.0.0 (all interfaces) or specific IP
-   --urls "http://0.0.0.0:5000;https://0.0.0.0:5001"
+   --urls "http://0.0.0.0:5000;https://0.0.0.0:8093"
    ```
 
 2. **Configure Firewall:**

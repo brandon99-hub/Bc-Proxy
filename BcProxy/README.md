@@ -42,12 +42,12 @@ dotnet restore
 dotnet run
 
 # Or specify URL and port explicitly
-dotnet run --urls "http://localhost:5000;https://localhost:5001"
+dotnet run --urls "http://localhost:5000;https://localhost:8093"
 ```
 
 The API will be available at:
 - HTTP: `http://localhost:5000`
-- HTTPS: `https://localhost:5001`
+- HTTPS: `https://localhost:8093`
 - Swagger UI (Development): `http://localhost:5000/swagger`
 
 ## API Endpoints
