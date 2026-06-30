@@ -26,6 +26,8 @@ public class StudentsController : ControllerBase
     [HttpGet("grade10")]
     public async Task<ActionResult<List<Grade10StudentFinancials>>> GetGrade10Financials(
         [FromQuery] string term,
+        [FromQuery] string? startDate,
+        [FromQuery] string? endDate,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(term))
@@ -35,9 +37,9 @@ public class StudentsController : ControllerBase
 
         try
         {
-            _logger.LogInformation("GET /students/grade10?term={Term}", term);
+            _logger.LogInformation("GET /students/grade10?term={Term}&startDate={Start}&endDate={End}", term, startDate, endDate);
 
-            var result = await _financialsService.GetGrade10FinancialsAsync(term.Trim().ToUpper(), cancellationToken);
+            var result = await _financialsService.GetGrade10FinancialsAsync(term.Trim().ToUpper(), startDate, endDate, cancellationToken);
 
             if (result.Count == 0)
             {
@@ -81,6 +83,8 @@ public class StudentsController : ControllerBase
     public async Task<ActionResult<Grade10StudentFinancials>> GetStudentFinancials(
         string studentNo,
         [FromQuery] string term,
+        [FromQuery] string? startDate,
+        [FromQuery] string? endDate,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(term))
@@ -90,10 +94,10 @@ public class StudentsController : ControllerBase
 
         try
         {
-            _logger.LogInformation("GET /students/{StudentNo}/financials?term={Term}", studentNo, term);
+            _logger.LogInformation("GET /students/{StudentNo}/financials?term={Term}&startDate={Start}&endDate={End}", studentNo, term, startDate, endDate);
 
             var result = await _financialsService.GetStudentFinancialsAsync(
-                studentNo, term.Trim().ToUpper(), cancellationToken);
+                studentNo, term.Trim().ToUpper(), startDate, endDate, cancellationToken);
 
             if (result == null)
             {

@@ -45,6 +45,20 @@ builder.Services.AddHttpClient<StudentFinancialsService>(client =>
     UseDefaultCredentials = true
 });
 
+builder.Services.AddHttpClient<StandardFeesService>(client =>
+{
+    var baseUrl = builder.Configuration["BusinessCentral:BaseUrl"]
+        ?? throw new InvalidOperationException("BusinessCentral:BaseUrl is not configured in appsettings.json");
+
+    if (!baseUrl.EndsWith("/")) baseUrl += "/";
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(60);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    UseDefaultCredentials = true
+});
+
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
