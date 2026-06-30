@@ -11,8 +11,7 @@ public class StudentFinancialsService
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly string _studentfeesEntity;
     private readonly string _customerBalanceEntity;
-    private readonly string _creditNotesEntity;
-    private readonly string _receiptsEntity;
+    private readonly string _customerEntriesEntity;
 
     public StudentFinancialsService(
         HttpClient httpClient,
@@ -31,10 +30,8 @@ public class StudentFinancialsService
             ?? throw new InvalidOperationException("BusinessCentral:StudentfeesEntity is not configured");
         _customerBalanceEntity = configuration["BusinessCentral:CustomerBalanceEntity"]
             ?? throw new InvalidOperationException("BusinessCentral:CustomerBalanceEntity is not configured");
-        _creditNotesEntity = configuration["BusinessCentral:CreditNotesEntity"]
-            ?? throw new InvalidOperationException("BusinessCentral:CreditNotesEntity is not configured");
-        _receiptsEntity = configuration["BusinessCentral:ReceiptsEntity"]
-            ?? throw new InvalidOperationException("BusinessCentral:ReceiptsEntity is not configured");
+        _customerEntriesEntity = configuration["BusinessCentral:CustomerEntriesEntity"]
+            ?? throw new InvalidOperationException("BusinessCentral:CustomerEntriesEntity is not configured");
     }
 
     /// <summary>
@@ -64,18 +61,12 @@ public class StudentFinancialsService
             .Where(b => !string.IsNullOrEmpty(b.StudentNo))
             .ToDictionary(b => b.StudentNo!, StringComparer.OrdinalIgnoreCase);
 
-        // 3. Get all receipts and credit notes
-        var allCreditNotes = await GetCreditNotesAsync(null, startDate, endDate, cancellationToken);
-        var allReceipts = await GetReceiptsAsync(null, startDate, endDate, cancellationToken);
+        // 3. Get all Customer Ledger Entries (Payments and Credit Notes)
+        var allEntries = await GetCustomerEntriesAsync(null, startDate, endDate, cancellationToken);
 
-        var creditNotesByStudent = allCreditNotes
-            .Where(c => !string.IsNullOrEmpty(c.StudentNo))
-            .GroupBy(c => c.StudentNo!, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
-
-        var receiptsByStudent = allReceipts
-            .Where(r => !string.IsNullOrEmpty(r.StudentNo))
-            .GroupBy(r => r.StudentNo!, StringComparer.OrdinalIgnoreCase)
+        var entriesByStudent = allEntries
+            .Where(e => !string.IsNullOrEmpty(e.StudentNo))
+            .GroupBy(e => e.StudentNo!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
         // 4. Group fee lines by student and build the response
@@ -92,11 +83,12 @@ public class StudentFinancialsService
             var firstLine = lines.First();
 
             balanceDict.TryGetValue(studentNo, out var balance);
-            creditNotesByStudent.TryGetValue(studentNo, out var studentCreditNotes);
-            receiptsByStudent.TryGetValue(studentNo, out var studentReceipts);
+            entriesByStudent.TryGetValue(studentNo, out var studentEntries);
 
-            studentCreditNotes ??= new List<CreditNote>();
-            studentReceipts ??= new List<ReceiptedPayment>();
+            studentEntries ??= new List<CustomerEntry>();
+
+            var studentCreditNotes = studentEntries.Where(e => e.DocumentType == "Credit Memo").ToList();
+            var studentReceipts = studentEntries.Where(e => e.DocumentType == "Payment").ToList();
 
             var studentFinancials = new Grade10StudentFinancials
             {
@@ -114,17 +106,17 @@ public class StudentFinancialsService
                 }).ToList(),
                 CreditNotes = studentCreditNotes.Select(c => new CreditNoteLineItem
                 {
-                    No = c.No ?? string.Empty,
-                    AppliesToDocNo = c.AppliesToDocNo ?? string.Empty,
+                    No = c.DocumentNo ?? string.Empty,
+                    AppliesToDocNo = "", // Not readily available on CustomerEntries unless joined
                     FeeItem = c.FeeItem ?? string.Empty,
-                    Amount = c.Amount,
+                    Amount = c.CreditAmount != 0 ? c.CreditAmount : Math.Abs(c.Amount),
                     PostingDate = c.PostingDate ?? string.Empty
                 }).ToList(),
                 Receipts = studentReceipts.Select(r => new ReceiptLineItem
                 {
-                    No = r.No ?? string.Empty,
+                    No = r.DocumentNo ?? string.Empty,
                     Description = r.Description ?? string.Empty,
-                    Amount = r.TotalAmount,
+                    Amount = r.CreditAmount != 0 ? r.CreditAmount : Math.Abs(r.Amount),
                     PostingDate = r.PostingDate ?? string.Empty
                 }).ToList()
             };
@@ -177,8 +169,9 @@ public class StudentFinancialsService
         var balance = balanceResult?.Value?.FirstOrDefault();
 
         // 3. Get Credit Notes and Receipts for this student
-        var studentCreditNotes = await GetCreditNotesAsync(studentNo, startDate, endDate, cancellationToken);
-        var studentReceipts = await GetReceiptsAsync(studentNo, startDate, endDate, cancellationToken);
+        var studentEntries = await GetCustomerEntriesAsync(studentNo, startDate, endDate, cancellationToken);
+        var studentCreditNotes = studentEntries.Where(e => e.DocumentType == "Credit Memo").ToList();
+        var studentReceipts = studentEntries.Where(e => e.DocumentType == "Payment").ToList();
 
         var firstLine = feeLines.First();
 
@@ -198,17 +191,17 @@ public class StudentFinancialsService
             }).ToList(),
             CreditNotes = studentCreditNotes.Select(c => new CreditNoteLineItem
             {
-                No = c.No ?? string.Empty,
-                AppliesToDocNo = c.AppliesToDocNo ?? string.Empty,
+                No = c.DocumentNo ?? string.Empty,
+                AppliesToDocNo = "", // Not explicitly on ledger
                 FeeItem = c.FeeItem ?? string.Empty,
-                Amount = c.Amount,
+                Amount = c.CreditAmount != 0 ? c.CreditAmount : Math.Abs(c.Amount),
                 PostingDate = c.PostingDate ?? string.Empty
             }).ToList(),
             Receipts = studentReceipts.Select(r => new ReceiptLineItem
             {
-                No = r.No ?? string.Empty,
+                No = r.DocumentNo ?? string.Empty,
                 Description = r.Description ?? string.Empty,
-                Amount = r.TotalAmount,
+                Amount = r.CreditAmount != 0 ? r.CreditAmount : Math.Abs(r.Amount),
                 PostingDate = r.PostingDate ?? string.Empty
             }).ToList()
         };
@@ -243,36 +236,23 @@ public class StudentFinancialsService
         return odataResult?.Value ?? new List<CustomerBalance>();
     }
 
-    private async Task<List<CreditNote>> GetCreditNotesAsync(string? studentNo, string? startDate, string? endDate, CancellationToken cancellationToken)
-    {
-        var filterConditions = new List<string>();
-        if (!string.IsNullOrEmpty(studentNo)) filterConditions.Add($"Account_No eq '{studentNo}'");
-        if (!string.IsNullOrEmpty(startDate)) filterConditions.Add($"Posting_Date ge {startDate}");
-        if (!string.IsNullOrEmpty(endDate)) filterConditions.Add($"Posting_Date le {endDate}");
-
-        var query = filterConditions.Count > 0 ? $"?$filter={string.Join(" and ", filterConditions)}" : "";
-        var response = await _httpClient.GetAsync($"{_creditNotesEntity}{query}", cancellationToken);
-        await EnsureSuccessAsync(response);
-
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        var odataResult = JsonSerializer.Deserialize<ODataResponse<CreditNote>>(content, _jsonOptions);
-        return odataResult?.Value ?? new List<CreditNote>();
-    }
-
-    private async Task<List<ReceiptedPayment>> GetReceiptsAsync(string? studentNo, string? startDate, string? endDate, CancellationToken cancellationToken)
+    private async Task<List<CustomerEntry>> GetCustomerEntriesAsync(string? studentNo, string? startDate, string? endDate, CancellationToken cancellationToken)
     {
         var filterConditions = new List<string>();
         if (!string.IsNullOrEmpty(studentNo)) filterConditions.Add($"Student_No eq '{studentNo}'");
         if (!string.IsNullOrEmpty(startDate)) filterConditions.Add($"Posting_Date ge {startDate}");
         if (!string.IsNullOrEmpty(endDate)) filterConditions.Add($"Posting_Date le {endDate}");
+        
+        filterConditions.Add("Reversed eq false");
+        filterConditions.Add("(Document_Type eq 'Payment' or Document_Type eq 'Credit Memo')");
 
         var query = filterConditions.Count > 0 ? $"?$filter={string.Join(" and ", filterConditions)}" : "";
-        var response = await _httpClient.GetAsync($"{_receiptsEntity}{query}", cancellationToken);
+        var response = await _httpClient.GetAsync($"{_customerEntriesEntity}{query}", cancellationToken);
         await EnsureSuccessAsync(response);
 
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        var odataResult = JsonSerializer.Deserialize<ODataResponse<ReceiptedPayment>>(content, _jsonOptions);
-        return odataResult?.Value ?? new List<ReceiptedPayment>();
+        var odataResult = JsonSerializer.Deserialize<ODataResponse<CustomerEntry>>(content, _jsonOptions);
+        return odataResult?.Value ?? new List<CustomerEntry>();
     }
 
     private async Task EnsureSuccessAsync(HttpResponseMessage response)
