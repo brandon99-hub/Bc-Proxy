@@ -7,6 +7,9 @@ public class CustomerEntry
     [JsonPropertyName("Document_No")] 
     public string? DocumentNo { get; set; }
 
+    [JsonPropertyName("External_Document_No")] 
+    public string? ExternalDocumentNo { get; set; }
+
     [JsonPropertyName("Document_Type")] 
     public string? DocumentType { get; set; }
 

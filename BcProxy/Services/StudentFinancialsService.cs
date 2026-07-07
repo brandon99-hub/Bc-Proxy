@@ -88,7 +88,10 @@ public class StudentFinancialsService
             studentEntries ??= new List<CustomerEntry>();
 
             var studentCreditNotes = studentEntries.Where(e => e.DocumentType == "Credit Memo").ToList();
-            var studentReceipts = studentEntries.Where(e => e.DocumentType == "Payment").ToList();
+            var studentReceipts = studentEntries.Where(e => 
+                (e.DocumentType == "Payment" || (string.IsNullOrWhiteSpace(e.DocumentType) && e.DocumentNo != null && e.DocumentNo.StartsWith("RC-", StringComparison.OrdinalIgnoreCase)))
+                && (e.Amount < 0 || e.CreditAmount > 0)
+            ).ToList();
 
             var studentFinancials = new Grade10StudentFinancials
             {
@@ -115,6 +118,7 @@ public class StudentFinancialsService
                 Receipts = studentReceipts.Select(r => new ReceiptLineItem
                 {
                     No = r.DocumentNo ?? string.Empty,
+                    ExternalNo = r.ExternalDocumentNo ?? string.Empty,
                     Description = r.Description ?? string.Empty,
                     Amount = r.CreditAmount != 0 ? r.CreditAmount : Math.Abs(r.Amount),
                     PostingDate = r.PostingDate ?? string.Empty
@@ -155,8 +159,7 @@ public class StudentFinancialsService
 
         if (feeLines.Count == 0)
         {
-            _logger.LogWarning("No fee records found for student {StudentNo} term {Term}", studentNo, term);
-            return null;
+            _logger.LogWarning("No fee records found for student {StudentNo} term {Term}, but checking balance and receipts anyway", studentNo, term);
         }
 
         // 2. Get this student's balance
@@ -171,17 +174,20 @@ public class StudentFinancialsService
         // 3. Get Credit Notes and Receipts for this student
         var studentEntries = await GetCustomerEntriesAsync(studentNo, startDate, endDate, cancellationToken);
         var studentCreditNotes = studentEntries.Where(e => e.DocumentType == "Credit Memo").ToList();
-        var studentReceipts = studentEntries.Where(e => e.DocumentType == "Payment").ToList();
+        var studentReceipts = studentEntries.Where(e => 
+            (e.DocumentType == "Payment" || (string.IsNullOrWhiteSpace(e.DocumentType) && e.DocumentNo != null && e.DocumentNo.StartsWith("RC-", StringComparison.OrdinalIgnoreCase)))
+            && (e.Amount < 0 || e.CreditAmount > 0)
+        ).ToList();
 
-        var firstLine = feeLines.First();
+        var firstLine = feeLines.FirstOrDefault();
 
         var financials = new Grade10StudentFinancials
         {
             StudentNo = studentNo,
             Name = balance?.Name ?? string.Empty,
             Phone = balance?.PhoneNo ?? string.Empty,
-            Programme = firstLine.Programme ?? string.Empty,
-            Term = firstLine.Term ?? string.Empty,
+            Programme = firstLine?.Programme ?? string.Empty,
+            Term = term,
             CurrentBalance = balance?.BalanceLcy ?? 0,
             Fees = feeLines.Select(l => new FeeLineItem
             {
@@ -200,6 +206,7 @@ public class StudentFinancialsService
             Receipts = studentReceipts.Select(r => new ReceiptLineItem
             {
                 No = r.DocumentNo ?? string.Empty,
+                ExternalNo = r.ExternalDocumentNo ?? string.Empty,
                 Description = r.Description ?? string.Empty,
                 Amount = r.CreditAmount != 0 ? r.CreditAmount : Math.Abs(r.Amount),
                 PostingDate = r.PostingDate ?? string.Empty
@@ -244,7 +251,7 @@ public class StudentFinancialsService
         if (!string.IsNullOrEmpty(endDate)) filterConditions.Add($"Posting_Date le {endDate}");
         
         filterConditions.Add("Reversed eq false");
-        filterConditions.Add("(Document_Type eq 'Payment' or Document_Type eq 'Credit Memo')");
+        filterConditions.Add("(Document_Type eq 'Payment' or Document_Type eq 'Credit Memo' or startswith(Document_No, 'RC-'))");
 
         var query = filterConditions.Count > 0 ? $"?$filter={string.Join(" and ", filterConditions)}" : "";
         var response = await _httpClient.GetAsync($"{_customerEntriesEntity}{query}", cancellationToken);

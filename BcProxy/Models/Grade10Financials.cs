@@ -53,6 +53,7 @@ public class CreditNoteLineItem
 public class ReceiptLineItem
 {
     public string No { get; set; } = string.Empty;
+    public string ExternalNo { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public string PostingDate { get; set; } = string.Empty;
