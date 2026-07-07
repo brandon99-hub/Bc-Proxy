@@ -251,7 +251,6 @@ public class StudentFinancialsService
         if (!string.IsNullOrEmpty(endDate)) filterConditions.Add($"Posting_Date le {endDate}");
         
         filterConditions.Add("Reversed eq false");
-        filterConditions.Add("(Document_Type eq 'Payment' or Document_Type eq 'Credit Memo' or Document_Type eq '' or Document_Type eq ' ')");
 
         var query = filterConditions.Count > 0 ? $"?$filter={string.Join(" and ", filterConditions)}" : "";
         var response = await _httpClient.GetAsync($"{_customerEntriesEntity}{query}", cancellationToken);
